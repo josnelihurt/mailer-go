@@ -1,2 +1,6 @@
 email: example@example.com
 password: mypassword
+recipient_email: example@gmail.com
+inbox_folder: ./../../fs/inbox
+err_folder: ./../../fs/err
+done_folder: ./../../fs/done
