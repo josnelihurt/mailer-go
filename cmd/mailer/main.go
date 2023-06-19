@@ -50,7 +50,8 @@ func main() {
 				if event.Op == fsnotify.Create {
 					fileToSend, err := eventInfo(event.Name)
 					if err != nil {
-						log.Fatal("unkown err: ", err)
+						log.Println("unkown err: ", err)
+						continue
 					}
 					sendFile(config, fileToSend)
 				}
