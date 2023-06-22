@@ -1,0 +1,11 @@
+version: '3'
+services:
+  app:
+    container_name: mailer
+    image: josnelihurt/mailer-go:latest
+    restart: always
+    volumes:
+      - ./fs/inbox:/app/fs/inbox
+      - ./fs/err:/app/fs/err
+      - ./fs/done:/app/fs/done
+      - ./cmd/mailer/config.yaml:/app/config.yaml
