@@ -41,7 +41,10 @@ func SendFile(config config.Config, file fs.FileInfo) {
 }
 
 var (
-	imeiToPhone = map[string]string{"355270044616142": "3044247910"}
+	imeiToPhone = map[string]string{
+		"355270044616142": "3044247910",
+		"355270044531622": "3005335930",
+	}
 )
 
 func sendEmail(config config.Config, fileContent string) error {
