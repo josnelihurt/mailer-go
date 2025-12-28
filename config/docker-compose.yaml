@@ -1,0 +1,12 @@
+version: '3'
+services:
+  app:
+    container_name: mailer
+    image: josnelihurt/mailer-go:latest
+    restart: always
+    network_mode: host
+    security_opt:
+      - apparmor=unconfined
+    volumes:
+      - /var/spool/sms:/var/spool/sms
+      - /opt/mailer-go/config.yaml:/app/config.yaml
