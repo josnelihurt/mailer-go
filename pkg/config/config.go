@@ -14,11 +14,14 @@ type Config struct {
 	Inbox          string   `mapstructure:"inbox_folder"`
 	ErrBox         string   `mapstructure:"err_folder"`
 	DoneBox        string   `mapstructure:"done_folder"`
+	RedisHost      string   `mapstructure:"redis_host"`
+	RedisPort      string   `mapstructure:"redis_port"`
+	RedisEnabled   bool     `mapstructure:"redis_enabled"`
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, inbox_folder:%s, err_folder:%s, done_folder:%s}",
-		c.Email, c.RecipientEmail, c.Inbox, c.ErrBox, c.DoneBox)
+	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, inbox_folder:%s, err_folder:%s, done_folder:%s, redis_enabled:%t, redis_host:%s, redis_port:%s}",
+		c.Email, c.RecipientEmail, c.Inbox, c.ErrBox, c.DoneBox, c.RedisEnabled, c.RedisHost, c.RedisPort)
 }
 
 func Read() (Config, error) {

@@ -27,7 +27,7 @@ func eventInfo(filename string) (fs.FileInfo, error) {
 }
 
 func processFSEvent(config config.Config, events <-chan fsnotify.Event, errors <-chan error) {
-	log.Printf("\nwaitting for events")
+	log.Printf("waitting for events")
 	for {
 		select {
 		case event, ok := <-events:
@@ -60,6 +60,10 @@ func main() {
 	}
 
 	log.Printf("\nconfig ok: %v", config.String())
+
+	// Initialize Redis client if enabled
+	mailer.InitRedisClient(config)
+
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		log.Fatal("NewWatcher failed: ", err)
