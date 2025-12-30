@@ -8,20 +8,23 @@ import (
 )
 
 type Config struct {
-	Email          string   `mapstructure:"email"`
-	Password       string   `mapstructure:"password"`
-	RecipientEmail []string `mapstructure:"recipient_email"`
-	Inbox          string   `mapstructure:"inbox_folder"`
-	ErrBox         string   `mapstructure:"err_folder"`
-	DoneBox        string   `mapstructure:"done_folder"`
-	RedisHost      string   `mapstructure:"redis_host"`
-	RedisPort      string   `mapstructure:"redis_port"`
-	RedisEnabled   bool     `mapstructure:"redis_enabled"`
+	Email          string            `mapstructure:"email"`
+	Password       string            `mapstructure:"password"`
+	RecipientEmail []string          `mapstructure:"recipient_email"`
+	Inbox          string            `mapstructure:"inbox_folder"`
+	ErrBox         string            `mapstructure:"err_folder"`
+	DoneBox        string            `mapstructure:"done_folder"`
+	RedisHost      string            `mapstructure:"redis_host"`
+	RedisPort      string            `mapstructure:"redis_port"`
+	RedisEnabled   bool              `mapstructure:"redis_enabled"`
+	ImeiToPhone    map[string]string `mapstructure:"imei_to_phone"`
+	ServerURL      string            `mapstructure:"server_url"`
+	APIKey         string            `mapstructure:"api_key"`
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, inbox_folder:%s, err_folder:%s, done_folder:%s, redis_enabled:%t, redis_host:%s, redis_port:%s}",
-		c.Email, c.RecipientEmail, c.Inbox, c.ErrBox, c.DoneBox, c.RedisEnabled, c.RedisHost, c.RedisPort)
+	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, inbox_folder:%s, err_folder:%s, done_folder:%s, redis_enabled:%t, redis_host:%s, redis_port:%s, imei_to_phone_count:%d}",
+		c.Email, c.RecipientEmail, c.Inbox, c.ErrBox, c.DoneBox, c.RedisEnabled, c.RedisHost, c.RedisPort, len(c.ImeiToPhone))
 }
 
 func Read() (Config, error) {

@@ -4,3 +4,11 @@ recipient_email: example@gmail.com
 inbox_folder: /app/fs/inbox
 err_folder: /app/fs/err
 done_folder: /app/fs/done
+redis_enabled: false
+redis_host: localhost
+redis_port: "6379"
+imei_to_phone:
+  "355222222222222": "3101111111"
+  "355222222222223": "3102222222"
+server_url: ""
+api_key: your-secret-api-key-here

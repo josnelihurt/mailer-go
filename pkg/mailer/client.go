@@ -7,8 +7,9 @@ import (
 	"io"
 	"log"
 	"net/http"
-	"os"
 	"time"
+
+	"github.com/josnelihurt/mailer-go/pkg/config"
 )
 
 type Client struct {
@@ -17,24 +18,14 @@ type Client struct {
 	httpClient *http.Client
 }
 
-type SMSEnqueueRequest struct {
-	SMSMessage SMSMessage `json:"sms_message"`
-	FolderName string     `json:"folder_name"`
-}
-
-func New() *Client {
-	serverURL := os.Getenv("MAILER_SERVER_URL")
-	if serverURL == "" {
-		serverURL = "https://mailer-go.vultur.josnelihurt.me"
-	}
-
-	apiKey := os.Getenv("MAILER_API_KEY")
+func New(cfg config.Config) *Client {
+	apiKey := cfg.APIKey
 	if apiKey == "" {
-		log.Fatal("MAILER_API_KEY environment variable is required in client mode")
+		log.Fatal("api_key configuration is required in client mode")
 	}
 
 	return &Client{
-		serverURL: serverURL,
+		serverURL: cfg.ServerURL,
 		apiKey:    apiKey,
 		httpClient: &http.Client{
 			Timeout: 10 * time.Second,
@@ -43,9 +34,8 @@ func New() *Client {
 }
 
 func (c *Client) SendToServer(folderName string, content string) error {
-	// Parse SMS message from content
 	sms := parseSMSMessage(content)
-	sms.SMSToolsFile = content // Store raw content in case parse fails
+	sms.SMSToolsFile = content
 
 	req := SMSEnqueueRequest{
 		SMSMessage: sms,

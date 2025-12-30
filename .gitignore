@@ -1,1 +1,3 @@
 config/config.yaml
+bin/mailer-client
+bin/mailer-server

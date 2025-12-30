@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"log"
 	"os"
@@ -54,15 +55,13 @@ func processFSEvent(config config.Config, events <-chan fsnotify.Event, errors <
 }
 
 func main() {
+	fmt.Println("Starting mailer-go in client mode")
 	config, err := config.Read()
 	if err != nil {
 		log.Fatal("Failed to read config:", err)
 	}
 
 	log.Printf("\nconfig ok: %v", config.String())
-
-	// Initialize Redis client if enabled
-	mailer.InitRedisClient(config)
 
 	watcher, err := fsnotify.NewWatcher()
 	if err != nil {

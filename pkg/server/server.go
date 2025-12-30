@@ -17,11 +17,6 @@ type Server struct {
 	apiKey string
 }
 
-type SMSEnqueueRequest struct {
-	SMSMessage mailer.SMSMessage `json:"sms_message"`
-	FolderName string            `json:"folder_name"`
-}
-
 func NewServer(cfg config.Config) *Server {
 	apiKey := os.Getenv("API_KEY")
 	if apiKey == "" {
@@ -69,7 +64,7 @@ func (s *Server) handleEnqueue(w http.ResponseWriter, r *http.Request) {
 	}
 	defer r.Body.Close()
 
-	var req SMSEnqueueRequest
+	var req mailer.SMSEnqueueRequest
 	if err := json.Unmarshal(body, &req); err != nil {
 		http.Error(w, "Invalid JSON", http.StatusBadRequest)
 		log.Printf("Invalid JSON: %v", err)

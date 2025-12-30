@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -10,6 +11,7 @@ import (
 )
 
 func main() {
+	fmt.Println("Starting mailer-go in server mode")
 	cfg, err := config.Read()
 	if err != nil {
 		log.Fatal("Failed to read config:", err)
