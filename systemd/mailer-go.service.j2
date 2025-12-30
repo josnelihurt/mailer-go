@@ -1,0 +1,18 @@
+[Unit]
+Description=Mailer-Go SMS Client
+After=network.target smstools.service
+Requires=smstools.service
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory={{ project_dir }}
+ExecStart={{ project_dir }}/mailer-go
+Environment="MAILER_SERVER_URL={{ mailer_server_url }}"
+Environment="MAILER_API_KEY={{ mailer_api_key }}"
+
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
