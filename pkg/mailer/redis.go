@@ -35,12 +35,12 @@ func InitRedisClient(cfg config.Config) {
 		redisClient = nil
 	} else {
 		log.Printf("Redis connected successfully at %s:%s", cfg.RedisHost, cfg.RedisPort)
-	}
-	status := redisClient.Set(ctx, "mailer-go:started", time.Now().Format(time.RFC3339), 0)
-	if status.Err() != nil {
-		log.Printf("Failed to set started timestamp in Redis: %v", status.Err())
-	} else {
-		log.Printf("Started timestamp set in Redis: %s", status.Val())
+		status := redisClient.Set(ctx, "mailer-go:started", time.Now().Format(time.RFC3339), 0)
+		if status.Err() != nil {
+			log.Printf("Failed to set started timestamp in Redis: %v", status.Err())
+		} else {
+			log.Printf("Started timestamp set in Redis: %s", status.Val())
+		}
 	}
 }
 

@@ -8,30 +8,52 @@ import (
 )
 
 type Config struct {
-	Email          string            `mapstructure:"email"`
-	Password       string            `mapstructure:"password"`
-	RecipientEmail []string          `mapstructure:"recipient_email"`
-	Inbox          string            `mapstructure:"inbox_folder"`
-	ErrBox         string            `mapstructure:"err_folder"`
-	DoneBox        string            `mapstructure:"done_folder"`
-	RedisHost      string            `mapstructure:"redis_host"`
-	RedisPort      string            `mapstructure:"redis_port"`
-	RedisEnabled   bool              `mapstructure:"redis_enabled"`
-	ImeiToPhone    map[string]string `mapstructure:"imei_to_phone"`
-	ServerURL      string            `mapstructure:"server_url"`
-	APIKey         string            `mapstructure:"api_key"`
+	// Email configuration
+	Email          string   `mapstructure:"email"`
+	Password       string   `mapstructure:"password"`
+	RecipientEmail []string `mapstructure:"recipient_email"`
+
+	// Redis configuration
+	RedisHost    string `mapstructure:"redis_host"`
+	RedisPort    string `mapstructure:"redis_port"`
+	RedisEnabled bool   `mapstructure:"redis_enabled"`
+
+	// IMEI to phone number mapping
+	ImeiToPhone map[string]string `mapstructure:"imei_to_phone"`
+
+	// Server communication
+	ServerURL string `mapstructure:"server_url"`
+	APIKey    string `mapstructure:"api_key"`
+
+	// NEW: Modem configuration
+	ModemDevice      string `mapstructure:"modem_device"`       // e.g. /dev/ttyUSB0
+	ModemBaud        int    `mapstructure:"modem_baud"`         // e.g. 115200
+	ModemInitTimeout int    `mapstructure:"modem_init_timeout"` // in seconds, default 30
+	DeleteAfterRead  bool   `mapstructure:"delete_after_read"`  // true to delete after processing
+
+	// REMOVED: SMSTools3 file paths (no longer needed)
+	// Inbox  string `mapstructure:"inbox_folder"`
+	// ErrBox string `mapstructure:"err_folder"`
+	// DoneBox string `mapstructure:"done_folder"`
 }
 
 func (c Config) String() string {
-	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, inbox_folder:%s, err_folder:%s, done_folder:%s, redis_enabled:%t, redis_host:%s, redis_port:%s, imei_to_phone_count:%d}",
-		c.Email, c.RecipientEmail, c.Inbox, c.ErrBox, c.DoneBox, c.RedisEnabled, c.RedisHost, c.RedisPort, len(c.ImeiToPhone))
+	return fmt.Sprintf("{email:%s, password:{hidden}, recipient_email:%s, redis_enabled:%t, redis_host:%s, redis_port:%s, imei_to_phone_count:%d, modem_device:%s, modem_baud:%d}",
+		c.Email, c.RecipientEmail, c.RedisEnabled, c.RedisHost, c.RedisPort, len(c.ImeiToPhone), c.ModemDevice, c.ModemBaud)
 }
 
 func Read() (Config, error) {
 	viper.SetConfigName("config")
 	viper.SetConfigType("yaml")
 	viper.AddConfigPath(".")
+	viper.AddConfigPath("config")
 	viper.AutomaticEnv()
+
+	// Set defaults for modem configuration
+	viper.SetDefault("modem_device", "/dev/ttyUSB0")
+	viper.SetDefault("modem_baud", 115200)
+	viper.SetDefault("modem_init_timeout", 30)
+	viper.SetDefault("delete_after_read", true)
 
 	err := viper.ReadInConfig()
 	if err != nil {
@@ -44,8 +66,14 @@ func Read() (Config, error) {
 		return Config{}, fmt.Errorf("unable to parse config: %s :%w", config.String(), err)
 	}
 
-	if config.Email == "" || config.Password == "" || config.Inbox == "" || config.ErrBox == "" || config.DoneBox == "" {
-		return Config{}, fmt.Errorf("invalid configuration: %s :%w", config.String(), errors.ErrApp)
+	// Validate required fields for AT mode
+	if config.Email == "" || config.Password == "" {
+		return Config{}, fmt.Errorf("invalid configuration: email and password are required :%w", errors.ErrApp)
 	}
+
+	if config.ModemDevice == "" {
+		return Config{}, fmt.Errorf("invalid configuration: modem_device is required :%w", errors.ErrApp)
+	}
+
 	return config, nil
 }

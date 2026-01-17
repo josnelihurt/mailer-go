@@ -33,10 +33,8 @@ func New(cfg config.Config) *Client {
 	}
 }
 
-func (c *Client) SendToServer(folderName string, content string) error {
-	sms := parseSMSMessage(content)
-	sms.SMSToolsFile = content
-
+// SendToServer sends SMS to server queue
+func (c *Client) SendToServer(folderName string, sms SMSMessage) error {
 	req := SMSEnqueueRequest{
 		SMSMessage: sms,
 		FolderName: folderName,
@@ -69,4 +67,12 @@ func (c *Client) SendToServer(folderName string, content string) error {
 	log.Printf("successfully enqueued on server queue")
 
 	return nil
+}
+
+// SendToServerFromString sends SMS from string content (for backward compatibility)
+// NOTE: No longer needed with direct AT modem mode - kept for API compatibility
+func (c *Client) SendToServerFromString(folderName string, content string) error {
+	// This function is deprecated - we now use direct modem communication
+	log.Printf("SendToServerFromString called - deprecated in AT modem mode")
+	return fmt.Errorf("SendToServerFromString deprecated - use direct modem communication")
 }

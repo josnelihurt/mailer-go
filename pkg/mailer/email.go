@@ -15,19 +15,44 @@ func SendEmail(cfg config.Config, sms SMSMessage) error {
 	message := gomail.NewMessage()
 	message.SetHeader("From", cfg.Email)
 	message.SetHeader("To", cfg.RecipientEmail...)
+
+	// Get phone number from IMEI mapping
 	sentTo := cfg.ImeiToPhone[sms.IMEI]
-	message.SetHeader("Subject", fmt.Sprintf("[SMS DATE TO] %s %s", sms.Sent, sentTo))
-	message.SetBody("text/plain", fmt.Sprintf(`
-		%s
+	if sentTo == "" {
+		sentTo = sms.From
+	}
 
+	subject := fmt.Sprintf("[SMS] %s -> %s", sms.From, sentTo)
+	if sms.Sent != "" {
+		subject = fmt.Sprintf("[SMS %s] %s -> %s", sms.Sent, sms.From, sentTo)
+	}
 
+	message.SetHeader("Subject", subject)
 
+	body := fmt.Sprintf(`From: %s
+To: %s
+Received: %s
 
-----------------------------
-FULL MESSAGE FROM FILE:
+Message:
 %s
-----------------------------
-	`, sms.Message, sms.SMSToolsFile))
+
+---
+Device: %s
+IMEI: %s
+Length: %d
+Alphabet: %s
+`,
+		sms.From,
+		sentTo,
+		sms.Received,
+		sms.Message,
+		sms.ModemDevice,
+		sms.IMEI,
+		sms.Length,
+		sms.Alphabet,
+	)
+
+	message.SetBody("text/plain", body)
 
 	dialer := gomail.NewDialer(smtpAuthAddress, 587, cfg.Email, cfg.Password)
 

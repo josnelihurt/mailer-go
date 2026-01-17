@@ -1,104 +1,72 @@
 package main
 
 import (
-	"fmt"
-	"io/fs"
 	"log"
 	"os"
-	"time"
+	"os/signal"
+	"syscall"
 
-	"github.com/fsnotify/fsnotify"
 	"github.com/josnelihurt/mailer-go/pkg/config"
 	"github.com/josnelihurt/mailer-go/pkg/mailer"
 )
 
-func eventInfo(filename string) (fs.FileInfo, error) {
-	file, err := os.Open(filename)
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return nil, err
-	}
-
-	return fileInfo, nil
-}
-
-func processFSEvent(config config.Config, events <-chan fsnotify.Event, errors <-chan error) {
-	log.Printf("waitting for events")
-	for {
-		select {
-		case event, ok := <-events:
-			if !ok {
-				return
-			}
-			time.Sleep(10 * time.Millisecond) //IDK it the other process writes immediatly
-			if event.Op != fsnotify.Create {
-				continue
-			}
-			fileToSend, err := eventInfo(event.Name)
-			if err != nil {
-				log.Println("unkown err: ", err)
-				continue
-			}
-			mailer.SendFile(config, fileToSend)
-		case err, ok := <-errors:
-			if !ok {
-				return
-			}
-			log.Println("error:", err)
-		}
-	}
-}
-
 func main() {
-	fmt.Println("Starting mailer-go in client mode")
-	config, err := config.Read()
+	log.Println("Starting mailer-go v2.1 - Native GSM Modem (no external dependencies)")
+
+	cfg, err := config.Read()
 	if err != nil {
 		log.Fatal("Failed to read config:", err)
 	}
 
-	log.Printf("\nconfig ok: %v", config.String())
+	log.Printf("Config loaded: modem=%s, baud=%d", cfg.ModemDevice, cfg.ModemBaud)
 
-	watcher, err := fsnotify.NewWatcher()
+	// Initialize modem with native implementation
+	gsmModem, err := mailer.NewGSMModem(cfg)
 	if err != nil {
-		log.Fatal("NewWatcher failed: ", err)
-	}
-	defer watcher.Close()
-
-	done := make(chan bool)
-	defer close(done)
-	go processFSEvent(config, watcher.Events, watcher.Errors)
-
-	if _, err := os.Stat(config.Inbox); os.IsNotExist(err) {
-		log.Fatal("inbox folder doesn't exist", err)
-	}
-	if _, err := os.Stat(config.ErrBox); os.IsNotExist(err) {
-		log.Fatal("err folder doesn't exist", err)
-	}
-	if _, err := os.Stat(config.DoneBox); os.IsNotExist(err) {
-		log.Fatal("done folder doesn't exist", err)
+		log.Fatal("Failed to create modem:", err)
 	}
 
-	files, err := os.ReadDir(config.Inbox)
-	if err != nil {
-		log.Fatal(err)
+	if err := gsmModem.Initialize(); err != nil {
+		log.Fatal("Failed to initialize modem:", err)
 	}
 
-	for _, file := range files {
-		log.Printf("\n sending %s", file)
-		fileInfo, err := file.Info()
-		if err != nil {
-			log.Fatal("unable to get info", err)
+	// Initialize Redis if enabled
+	mailer.InitRedisClient(cfg)
+
+	// Start SMS polling in a separate goroutine
+	go gsmModem.Start(func(sms mailer.SMSMessage) {
+		log.Printf("SMS received from %s: %s", sms.From, sms.Message)
+
+		// Send email
+		if err := mailer.SendEmail(cfg, sms); err != nil {
+			log.Printf("Email failed: %v", err)
+		} else {
+			log.Printf("Email sent successfully")
 		}
-		mailer.SendFile(config, fileInfo)
-	}
-	err = watcher.Add(config.Inbox)
-	if err != nil {
-		log.Fatal("Add failed:", err)
-	}
-	<-done
+
+		// Send to server
+		if cfg.ServerURL != "" && cfg.APIKey != "" {
+			client := mailer.New(cfg)
+			if err := client.SendToServer("incoming", sms); err != nil {
+				log.Printf("Server POST failed: %v", err)
+			} else {
+				log.Printf("Server POST successful")
+			}
+		}
+
+		// Publish to Redis
+		if cfg.RedisEnabled {
+			mailer.PushToRedis(cfg, "incoming", sms)
+		}
+
+		log.Printf("SMS processed successfully")
+	})
+
+	// Configure shutdown gracefully
+	sigChan := make(chan os.Signal, 1)
+	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
+
+	// Wait for shutdown signal
+	<-sigChan
+	log.Println("Shutting down...")
 }
