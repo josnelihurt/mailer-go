@@ -5,7 +5,8 @@ services:
     image: josnelihurt/mailer-go:latest
     restart: always
     volumes:
-      - ./fs/inbox:/app/fs/inbox
-      - ./fs/err:/app/fs/err
-      - ./fs/done:/app/fs/done
       - ./cmd/mailer/config.yaml:/app/config.yaml
+    # For GSM modem access, use host network and device passthrough
+    # network_mode: host
+    # devices:
+    #   - /dev/ttyUSB0:/dev/ttyUSB0

@@ -1,14 +1,23 @@
 email: example@example.com
 password: mypassword
 recipient_email: example@gmail.com
-inbox_folder: /app/fs/inbox
-err_folder: /app/fs/err
-done_folder: /app/fs/done
+
+# GSM modem configuration
+modem_device: /dev/ttyUSB0
+modem_baud: 115200
+modem_init_timeout: 30
+delete_after_read: true
+
+# Redis configuration
 redis_enabled: false
 redis_host: localhost
 redis_port: "6379"
+
+# IMEI to phone number mapping (for email subject generation)
 imei_to_phone:
   "355222222222222": "3101111111"
   "355222222222223": "3102222222"
+
+# Server communication
 server_url: ""
 api_key: your-secret-api-key-here

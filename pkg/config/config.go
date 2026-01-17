@@ -25,16 +25,11 @@ type Config struct {
 	ServerURL string `mapstructure:"server_url"`
 	APIKey    string `mapstructure:"api_key"`
 
-	// NEW: Modem configuration
+	// GSM modem configuration
 	ModemDevice      string `mapstructure:"modem_device"`       // e.g. /dev/ttyUSB0
 	ModemBaud        int    `mapstructure:"modem_baud"`         // e.g. 115200
 	ModemInitTimeout int    `mapstructure:"modem_init_timeout"` // in seconds, default 30
 	DeleteAfterRead  bool   `mapstructure:"delete_after_read"`  // true to delete after processing
-
-	// REMOVED: SMSTools3 file paths (no longer needed)
-	// Inbox  string `mapstructure:"inbox_folder"`
-	// ErrBox string `mapstructure:"err_folder"`
-	// DoneBox string `mapstructure:"done_folder"`
 }
 
 func (c Config) String() string {

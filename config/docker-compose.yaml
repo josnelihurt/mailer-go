@@ -7,6 +7,7 @@ services:
     network_mode: host
     security_opt:
       - apparmor=unconfined
+    devices:
+      - /dev/ttyUSB0:/dev/ttyUSB0
     volumes:
-      - /var/spool/sms:/var/spool/sms
       - /opt/mailer-go/config.yaml:/app/config.yaml

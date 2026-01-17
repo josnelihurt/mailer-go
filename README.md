@@ -1,6 +1,6 @@
 # Mailer-Go
 
-SMS-to-Email gateway for GSM modems running on LXC containers.
+SMS-to-Email gateway for GSM modems running on LXC containers with native AT modem communication.
 
 ## What's This About?
 
@@ -28,10 +28,8 @@ Instead of fighting with VPN routing, I just built a tiny Go microservice that r
 ```mermaid
 graph TB
     subgraph "Proxmox LXC Containers"
-        M1[GSM Modem 1<br/>USB Passthrough] --> S1[SMSTools3]
-        M2[GSM Modem 2<br/>USB Passthrough] --> S2[SMSTools3]
-        S1 --> |/var/spool/sms/incoming| C1[Mailer-Go Client 1]
-        S2 --> |/var/spool/sms/incoming| C2[Mailer-Go Client 2]
+        M1[GSM Modem 1<br/>USB Passthrough] --> C1[Mailer-Go Client 1<br/>Native AT Modem]
+        M2[GSM Modem 2<br/>USB Passthrough] --> C2[Mailer-Go Client 2<br/>Native AT Modem]
     end
 
     subgraph "VPS Server vultur1"
@@ -62,39 +60,36 @@ graph TB
 
 ### Components
 
-- **SMSTools3** - SMS gateway daemon that reads from GSM modems and writes to filesystem
-- **Mailer-Go (Client Mode)** - File watcher daemon that processes SMS files and sends emails
+- **Mailer-Go (Client Mode)** - Native GSM modem communication using tarm/serial
 - **Mailer-Go (Server Mode)** - HTTP API server that receives SMS and publishes to Redis
 - **Redis Pub/Sub** - Message bus for real-time SMS distribution (n8n reads from here)
 
 ### How It Works
 
 1. **LXC Containers** (on Proxmox) have GSM modems attached via USB passthrough
-2. **SMSTools3** detects incoming SMS and writes them to `/var/spool/sms/incoming`
-3. **Mailer-Go Client** watches that folder, parses the SMS, and:
+2. **Mailer-Go Client** communicates directly with the modem via AT commands:
+   - Sends AT commands to check for new SMS (polls every 5 seconds)
+   - Parses SMS from GSM modem using AT+CMGL
    - Sends you an email via Gmail (immediate notification)
    - POSTs the SMS to the HTTP server on vultur1
-4. **Mailer-Go Server** validates the API key and publishes to Redis Pub/Sub channel `sms:incoming`
-5. **n8n** (future) subscribes to that Redis channel and can trigger workflows:
+3. **Mailer-Go Server** validates the API key and publishes to Redis Pub/Sub channel `sms:incoming`
+4. **n8n** (future) subscribes to that Redis channel and can trigger workflows:
    - Forward to Telegram
    - Store in database
    - Send SMS replies (when I get around to implementing that lol)
 
 ### Data Flow
 
-#### File Watcher Mode (Primary Deployment)
-
 ```mermaid
 graph LR
-    A[GSM Modem] --> B[SMSTools3]
-    B -->|/var/spool/sms/incoming| C[Mailer-Go Client]
-    C -->|SMTP| D[Email]
-    C -->|optional| E[Redis Pub/Sub]
-    C -->|on success| F[/var/spool/sms/done/]
-    C -->|on error| G[/var/spool/sms/err/]
+    A[GSM Modem] --> B[Mailer-Go Client<br/>AT Commands]
+    B -->|AT+CMGL Poll| C[New SMS Detected]
+    C -->|Parse UCS2| D[Email via SMTP]
+    C -->|Optional| E[Redis Pub/Sub]
+    C -->|Delete after read| F[Modem Memory]
 ```
 
-The file watcher daemon monitors the incoming SMS directory for new files created by SMSTools3. When a file appears, it parses the SMSTools3 format, sends an email via Gmail SMTP, optionally publishes the message to a Redis channel for real-time distribution, and moves the processed file to the done directory. Failed messages are moved to the error directory.
+The client polls the GSM modem every 5 seconds using AT+CMGL command to check for new messages. When new SMS are detected, it parses the UCS2-encoded content (both phone numbers and message text), sends an email via Gmail SMTP, optionally publishes the message to a Redis channel for real-time distribution, and deletes the message from modem memory if configured.
 
 #### Server Mode (HTTP API)
 
@@ -112,7 +107,7 @@ The HTTP server provides an API endpoint for enqueueing SMS messages. It validat
 ```
 mailer-go/
 ├── cmd/
-│   ├── mailer/          # File watcher daemon (client mode)
+│   ├── mailer/          # GSM modem client (native AT mode)
 │   │   ├── main.go       # Main entry point
 │   │   └── config.yaml   # Example configuration
 │   └── server/          # HTTP API server (server mode)
@@ -120,15 +115,16 @@ mailer-go/
 ├── pkg/
 │   ├── config/          # Configuration management
 │   │   └── config.go    # Config struct and loading logic
-│   ├── errors/          # Error definitions
-│   │   └── errors.go
 │   ├── mailer/          # Core SMS processing logic
-│   │   ├── mailer.go    # Email sending, SMS parsing, Redis publishing
+│   │   ├── gsm_modem.go # Native AT modem implementation
+│   │   ├── email.go     # Email sending
+│   │   ├── redis.go     # Redis publishing
+│   │   ├── models.go    # SMS message structures
 │   │   └── client.go    # HTTP client for server communication
 │   └── server/          # HTTP server implementation
 │       └── server.go    # API handlers, auth middleware
 ├── config/              # Configuration files
-├── fs/                  # Filesystem directories (inbox, err, done)
+├── systemd/             # systemd service templates
 ├── docker-compose.yaml  # Container orchestration
 ├── Dockerfile           # Image build definition
 └── Makefile            # Build automation
@@ -136,17 +132,19 @@ mailer-go/
 
 ### Application Stereotypes
 
-- **File Watcher Daemon** (`cmd/mailer/main.go`): Long-running process, filesystem monitoring, sequential processing
+- **GSM Modem Client** (`cmd/mailer/main.go`): Long-running process, AT command polling, SMS parsing
 - **HTTP Server** (`cmd/server/main.go`): Stateless API server, authentication middleware, pub/sub producer
-- **SMS Parser** (`pkg/mailer/mailer.go`): Message transformation, format conversion, external integration
-- **HTTP Client** (`pkg/mailer/client.go`): Remote service communication, retry logic (implicit)
+- **GSM Modem Driver** (`pkg/mailer/gsm_modem.go`): AT command handling, UCS2 decoding, message parsing
+- **HTTP Client** (`pkg/mailer/client.go`): Remote service communication
 - **Configuration Manager** (`pkg/config/config.go`): Centralized config, environment variable binding, validation
 
 ## Current Status & Future Plans
 
 ### What Works Today
 
+- Native GSM modem communication via AT commands (no SMSTools3 dependency)
 - Receive SMS from GSM modems anywhere in the world
+- UCS2 hex decoding for international phone numbers and text
 - Get instant email notifications
 - Publish to Redis Pub/Sub for real-time processing
 - Structured JSON messages with proper parsing
@@ -163,7 +161,7 @@ mailer-go/
 **Phase 2: Two-Way SMS** (future)
 - Send SMS from Telegram via n8n webhook
 - API endpoint: `POST /v1/sms/send`
-- Write to SMSTools3 outgoing queue
+- Send via AT+CMGS command
 - Track delivery status
 
 **Phase 3: Maybe Someday**
@@ -198,12 +196,11 @@ Each LXC container handles one modem independently with identical configuration.
 ## Dependencies
 
 ### System Level
-- SMSTools3 (v3.1.21) - SMS gateway daemon
-- Docker (docker.io)
-- udev rules for persistent device naming
+- Docker (docker.io) - for server mode
+- udev rules for persistent device naming (recommended)
 
 ### Application
-- Go application (containerized)
+- Go application (containerized or native binary)
 - Docker image: `josnelihurt/mailer-go:latest`
 
 ### Configuration Files
@@ -212,20 +209,16 @@ Each LXC container handles one modem independently with identical configuration.
 - `email` - Gmail SMTP account
 - `password` - App-specific password
 - `recipient_email` - Destination email addresses (list)
-- `inbox_folder` - SMS input directory
-- `err_folder` - Failed SMS directory
-- `done_folder` - Processed SMS directory
+- `modem_device` - GSM modem device (e.g., /dev/ttyUSB0)
+- `modem_baud` - Modem baud rate (e.g., 115200)
+- `modem_init_timeout` - Modem initialization timeout in seconds (default: 30)
+- `delete_after_read` - Delete SMS from modem after processing (default: true)
 - `redis_enabled` - Enable Redis pub/sub
 - `redis_host` - Redis server hostname
 - `redis_port` - Redis server port
 - `imei_to_phone` - Map of IMEI to phone numbers for email subject generation
 - `server_url` - HTTP API server URL for client mode
 - `api_key` - API key for authenticating with server
-
-**SMSTools3** (`/etc/smsd.conf`):
-- Device configuration (ttyUSB0, baudrate)
-- Incoming/outgoing folder paths
-- Log file paths
 
 ## Deployment Scripts
 
@@ -245,26 +238,23 @@ Both containers use host networking (network_mode: host) on the 192.168.31.0/24 
 
 ## SMS Message Format
 
-SMSTools3 writes files in key-value format:
+SMS messages are parsed directly from GSM modem AT+CMGL response:
 
+```json
+{
+  "from": "+1234567890",
+  "sent": "26/01/17,00:59:09-20",
+  "received": "2026-01-17 12:34:56",
+  "message": "Hello world",
+  "imei": "355270044616142",
+  "imsi": "",
+  "modem_device": "ttyUSB0",
+  "index": 0,
+  "modem": "ttyUSB0",
+  "alphabet": "UCS2",
+  "length": 11
+}
 ```
-From: +1234567890
-From_TOA: 91
-From_SMSC: +1234567890
-Sent: 25-12-25 14:30:00
-Received: 25-12-25 14:30:05
-Subject: [optional subject]
-Modem: GSM1
-IMSI: 123456789012345
-IMEI: 355270044616142
-Report: yes
-Alphabet: UCS2
-Length: 160
-Message body text here
-```
-
-Parsed JSON structure includes all fields plus:
-- `smstools_file`: Raw file content for fallback parsing
 
 ## Environment Variables
 
@@ -287,7 +277,7 @@ Enqueue SMS message for distribution via Redis.
 {
   "sms_message": {
     "from": "+1234567890",
-    "sent": "25-12-25 14:30:00",
+    "sent": "26/01/17,00:59:09-20",
     "message": "Hello world",
     "imei": "355270044616111",
     ...
@@ -322,17 +312,15 @@ When `redis_enabled: true`, SMS messages are published to:
 
 - Email send failure: Logged, continues to process
 - Server enqueue failure: Logged, continues to process
-- File move failure: Logged, file may remain in inbox
 - Redis connection failure: Non-fatal, logged
-- Malformed SMS: Raw content preserved in `smstools_file` field
-- Missing folders: Fatal error at startup
+- Modem communication error: Logged, continues polling
 - Missing config: Fatal error at startup
 
 ## Development
 
 ### Build
 
-Build client (file watcher mode):
+Build client (GSM modem mode):
 ```bash
 make build-client
 ```
@@ -355,7 +343,7 @@ go build -o bin/mailer-server cmd/server/main.go
 
 ### Run Locally
 
-Client mode (file watcher):
+Client mode (GSM modem):
 ```bash
 ./bin/mailer-client
 ```
@@ -376,3 +364,16 @@ make docker-build
 ```bash
 docker-compose up -d
 ```
+
+## AT Command Implementation
+
+This project uses native AT commands via `tarm/serial` for GSM modem communication:
+
+- **AT+CMGL="ALL"** - List all messages from modem memory
+- **AT+CMGD=<index>,4** - Delete message by index
+- **AT+CGSN** - Get modem IMEI
+- **AT+CNMI=2,1,0,0,0** - Configure new message indication (Huawei compatible)
+- **AT+CMGF=1** - Set text mode
+- **AT+CSCS="UCS2"** - Set UCS2 character set
+
+All messages are polled every 5 seconds for reliability.
